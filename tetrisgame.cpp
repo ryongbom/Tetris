@@ -3,7 +3,7 @@
 TetrisGame::TetrisGame(QWidget *parent) : QWidget(parent)
 {
     //기본창크기와 제목
-    setFixedSize(300, 600);
+    setFixedSize(500, 600);
     setWindowTitle("My Tetris Game");
 
     //기본창의 격자처리후 매칸을 배렬로 정의한후 초기화처리
@@ -83,9 +83,25 @@ TetrisGame::TetrisGame(QWidget *parent) : QWidget(parent)
     connect(gameTimer, &QTimer::timeout, this, &TetrisGame::updateGame);
     //시간간격 0.5초
     gameSpeed = 500; // 0.5s
-    gameTimer->start(gameSpeed);
 
     score = 0;
+
+    nextBlockType = rand() % 7;
+    //시작 정지버튼 생성자에서 초기화
+    isPaused = false;
+    //시작 버튼 생성
+    startButton = new QPushButton("start", this);
+    startButton->setGeometry(320, 200, 160, 40);
+    startButton->setFont(QFont("Arial", 14));
+    startButton->setEnabled(true);
+    //정지 버튼 생성
+    pauseButton = new QPushButton("pause", this);
+    pauseButton->setGeometry(320, 250, 160, 40);
+    pauseButton->setFont(QFont("Arial", 14));
+    pauseButton->setEnabled(false);
+
+    connect(startButton, &QPushButton::clicked, this, &TetrisGame::startGame);
+    connect(pauseButton, &QPushButton::clicked, this, &TetrisGame::pauseGame);
 }
 //updateGame이 호출시 블로크 1칸 떨구기
 void TetrisGame::updateGame() {
@@ -134,14 +150,16 @@ void TetrisGame::lockBlock() {
         }
     }
     checkLineComplete();
-    update();
 
     if (isGameOver()) {
         gameTimer->stop();
         setWindowTitle("Game Over! Score: " + QString::number(score));
+        startButton->setEnabled(true);
+        pauseButton->setEnabled(false);
         return;
     }
     spawnNewBlock();
+    update();
 }
 //오락종료함수
 bool TetrisGame::isGameOver() {
@@ -156,15 +174,18 @@ bool TetrisGame::isGameOver() {
 }
 //새 블로크생성함수
 void TetrisGame::spawnNewBlock() {
-    if (isGameOver()) {
-        gameTimer->stop();
-        setWindowTitle("Game Over! Score: " + QString::number(score));
-        return;
-    }
     currentX = 3;
     currentY = 0;
-    currentBlockType = rand() % 7;
+    currentBlockType = nextBlockType;
+    nextBlockType = rand() % 7;
     currentRotation = 0;
+
+    if (checkCollision(currentX, currentY, currentRotation)) {
+        gameTimer->stop();
+        setWindowTitle("Game Over! Score: " + QString::number(score));
+        startButton->setEnabled(true);
+        pauseButton->setEnabled(false);
+    }
 }
 //줄이 다 완성됐는지 검사하고 처리함수 중요!!!
 void TetrisGame::checkLineComplete() {
@@ -212,15 +233,62 @@ void TetrisGame::hardDrop() {
 
     lockBlock();
 }
+//시작 정지함수 구현
+void TetrisGame::startGame() {
+    for(int i = 0; i < 20; i++) {
+        for(int j = 0; j < 10; j++) {
+            board[i][j] = 0;
+        }
+    }
+
+    score = 0;
+    currentX = 3;
+    currentY = 0;
+    currentBlockType = rand() % 7;
+    nextBlockType = rand() % 7;
+    currentRotation = 0;
+
+    gameTimer->start(gameSpeed);
+    startButton->setEnabled(false);
+    pauseButton->setEnabled(true);
+    pauseButton->setText("Pause");
+    isPaused = false;
+    setWindowTitle("My Tetris Game");
+    setFocus();
+    update();
+}
+void TetrisGame::pauseGame() {
+    if (isPaused) {
+        gameTimer->start(gameSpeed);
+        pauseButton->setText("Pause");
+        isPaused = false;
+    }
+    else {
+        gameTimer->stop();
+        pauseButton->setText("Resume");
+        isPaused = true;
+    }
+    setFocus();
+}
 //배경창그리기
 void TetrisGame::paintEvent(QPaintEvent *event) {
     Q_UNUSED(event);
 
     QPainter painter(this);
 
-    painter.fillRect(0, 0, width(), height(), Qt::darkGray);
+    painter.fillRect(0, 0, 300, 600, Qt::darkGray);
+    painter.fillRect(300, 0, 200, 600, QColor(240, 240, 240));
+
+    painter.fillRect(320, 40, 160, 120, Qt::black);
+    painter.setPen(Qt::white);
+    painter.drawRect(320, 40, 160, 120);
+
+    painter.setPen(Qt::black);
+    painter.setFont(QFont("Arial", 10, QFont::Bold));
+    painter.drawText(345, 190, "NEXT BLOCK");
 
     bool gameOver = !gameTimer->isActive();
+    bool gameNotStarted = (score == 0 && !gameTimer->isActive() && !isPaused);
 
     //점수표시
     painter.setPen(Qt::white);
@@ -238,25 +306,40 @@ void TetrisGame::paintEvent(QPaintEvent *event) {
         }
     }
 
-    painter.setPen(Qt::lightGray);
+    painter.setPen(Qt::white);
     for(int x = 0; x <= 300; x += 30) {
         painter.drawLine(x, 0, x, 600);
     }
     for(int y = 0; y <= 600; y += 30) {
         painter.drawLine(0, y, 300, y);
     }
-    if (!gameOver)
-        drawBlock(painter);
+    if (gameNotStarted) {
 
-    if (gameOver) {
+    }
+    if (gameNotStarted) {
+        painter.fillRect(50, 250, 200, 100, QColor(0, 0, 0, 200));
+        painter.setPen(Qt::white);
+        painter.setFont(QFont("Arial", 16, QFont::Bold));
+        painter.drawText(95, 290, "READY?");
+
+        painter.setFont(QFont("Arial", 12));
+        painter.drawText(60, 320, "Click START Button");
+    }
+    else if (!gameOver && !isPaused) {
+        drawBlock(painter);
+        drawNextBlock(painter);
+    }
+
+
+    if (gameOver && score > 0) {
         painter.fillRect(30, 250, 240, 100, QColor(0, 0, 0, 200));
         painter.setPen(Qt::white);
         painter.setFont(QFont("Arial", 16, QFont::Bold));
         painter.drawText(70, 290, "GAME OVER");
 
         painter.setFont(QFont("Arial", 12));
-        painter.drawText(90, 320, "Final Score: " + QString::number(score));
-        painter.drawText(90, 340, "Press SPACE");
+        painter.drawText(80, 320, "Final Score: " + QString::number(score));
+        painter.drawText(75, 340, "Click button Start");
     }
 }
 //건반명령구현
@@ -271,8 +354,14 @@ void TetrisGame::keyPressEvent(QKeyEvent *event) {
         currentX = 3;
         currentY = 0;
         currentBlockType = rand() % 7;
+        nextBlockType = rand() % 7;
         currentRotation = 0;
         gameTimer->start(gameSpeed);
+
+        startButton->setEnabled(false);
+        pauseButton->setEnabled(true);
+        pauseButton->setText("Pause");
+        isPaused = false;
         setWindowTitle("My Tetris Game");
         update();
         return;
@@ -303,6 +392,32 @@ void TetrisGame::keyPressEvent(QKeyEvent *event) {
         update();
     }
 }
+void TetrisGame::drawNextBlock(QPainter &painter) {
+    QColor colors[7] = {
+        Qt::cyan,
+        Qt::yellow,
+        Qt::magenta,
+        Qt::green,
+        Qt::red,
+        Qt::blue,
+        QColor(255, 165, 0)
+    };
+    int offsetX = 340 + 20;
+    int offsetY = 40 + 20;
+    for(int i = 0; i < 4; i++) {
+        for(int j = 0; j < 4; j++) {
+            if(blocks[nextBlockType][0][i][j] == 1) {
+                int x = offsetX + j * 20;
+                int y = offsetY + i * 20;
+
+                painter.fillRect(x, y, 20, 20, colors[nextBlockType]);
+
+                painter.setPen(Qt::black);
+                painter.drawRect(x, y, 20, 20);
+            }
+        }
+    }
+}
 //매 블로크색갈주고 그리기
 void TetrisGame::drawBlock(QPainter &painter) {
     QColor colors[7] = {
@@ -329,3 +444,4 @@ void TetrisGame::drawBlock(QPainter &painter) {
         }
     }
 }
+

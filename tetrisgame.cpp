@@ -313,9 +313,7 @@ void TetrisGame::paintEvent(QPaintEvent *event) {
     for(int y = 0; y <= 600; y += 30) {
         painter.drawLine(0, y, 300, y);
     }
-    if (gameNotStarted) {
 
-    }
     if (gameNotStarted) {
         painter.fillRect(50, 250, 200, 100, QColor(0, 0, 0, 200));
         painter.setPen(Qt::white);
